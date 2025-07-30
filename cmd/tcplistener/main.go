@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net"
+
+	"github.com/siluk00/http_protocol/internal/request"
 )
 
 func main() {
@@ -19,20 +20,23 @@ func run() {
 	defer listener.Close()
 	fmt.Println("Listening to port 42069")
 
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Fatalf("Error accepting connection: %v\n", err)
-		}
-		log.Println("Connection accepted")
-		words := getLines(conn)
-		fmt.Println(words)
-		fmt.Printf("\n")
+	conn, err := listener.Accept()
+	if err != nil {
+		log.Fatalf("Error accepting connection: %v\n", err)
 	}
+	log.Println("Connection accepted")
+	req, err := request.RequestFromReader(conn)
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+	fmt.Println("Request line:")
+	fmt.Printf("- Method: %s\n", req.RequestLine.Method)
+	fmt.Printf("- Target: %s\n", req.RequestLine.RequestTarget)
+	fmt.Printf("- Version: %s\n", req.RequestLine.HttpVersion)
 
 }
 
-func getLines(f io.ReadCloser) string {
+/*func getLines(f io.ReadCloser) string {
 	defer f.Close()
 	buffer := make([]byte, 8)
 	lines := make([]byte, 0)
@@ -50,4 +54,4 @@ func getLines(f io.ReadCloser) string {
 	}
 
 	return string(lines)
-}
+}*/
