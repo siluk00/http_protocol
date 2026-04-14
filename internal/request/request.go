@@ -5,10 +5,13 @@ import (
 	"io"
 	"slices"
 	"strings"
+
+	"github.com/siluk00/http_protocol/internal/headers"
 )
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     headers.Headers
 	State       state
 }
 
@@ -22,6 +25,7 @@ type state int
 
 const (
 	initialized state = iota
+	initializingHeaders
 	done
 )
 
@@ -29,36 +33,50 @@ const bufferSize = 8
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	buf := make([]byte, bufferSize)
-	readToIndex := 0
+	readenIndex := 0
 	request := Request{
-		State: initialized,
+		State:   initialized,
+		Headers: headers.NewHeaders(),
 	}
 
 	for request.State != done {
-		if readToIndex >= bufferSize {
+		if readenIndex == len(buf) {
 			newBuf := make([]byte, len(buf)*2)
 			copy(newBuf, buf)
 			buf = newBuf
 		}
 
-		n, err := reader.Read(buf[readToIndex:])
-		readToIndex += n
+		n, err := reader.Read(buf[readenIndex:])
 
 		if err != nil {
-			request.State = done
-			break
-		}
-
-		bytesReaden, err := request.parse(buf)
-
-		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			return nil, err
 		}
 
-		newBuf := make([]byte, len(buf))
-		copy(newBuf, buf[bytesReaden:])
-		buf = newBuf
-		readToIndex -= bytesReaden
+		readenIndex += n
+		for {
+			bytesReaden, err := request.parse(buf[:readenIndex])
+
+			if err != nil {
+				return nil, err
+			}
+
+			if bytesReaden == 0 {
+				break
+			}
+
+			//newBuf := make([]byte, len(buf))
+			//copy(newBuf, buf[bytesReaden:])
+			//buf = newBuf
+			copy(buf, buf[bytesReaden:readenIndex])
+			readenIndex -= bytesReaden
+
+			if request.State == done {
+				return &request, nil
+			}
+		}
 
 	}
 
@@ -69,15 +87,17 @@ func getMethodList() []string {
 	return []string{"GET", "POST"}
 }
 
-func parseRequestLine(line string) (*RequestLine, int, error) {
-	if !strings.Contains(line, "\r\n") {
+// returns request line or nothing and bytes readen
+func parseRequestLine(lines string) (*RequestLine, int, error) {
+	index := strings.Index(lines, "\r\n")
+	if index == -1 {
 		return nil, 0, nil
 	}
 
-	lines := strings.Split(line, "\r\n")
-	parts := strings.Split(lines[0], " ")
+	line := lines[:index]
+	parts := strings.Split(line, " ")
 	if len(parts) != 3 {
-		return nil, 0, fmt.Errorf("bad line")
+		return nil, 0, fmt.Errorf("bad requeest line: expected 3 parts")
 	}
 
 	if !slices.Contains(getMethodList(), parts[0]) {
@@ -92,12 +112,14 @@ func parseRequestLine(line string) (*RequestLine, int, error) {
 		HttpVersion:   "1.1",
 		RequestTarget: parts[1],
 		Method:        parts[0],
-	}, len(lines[0]), nil
+	}, len(line) + 2, nil
 }
 
+// wrapper to request line, mounts the struct r with request line and return bytes readen
 func (r *Request) parse(data []byte) (int, error) {
 
-	if r.State == initialized {
+	switch r.State {
+	case initialized:
 		requestLine, bytesReaden, err := parseRequestLine(string(data))
 		if err != nil {
 			return 0, err
@@ -107,15 +129,27 @@ func (r *Request) parse(data []byte) (int, error) {
 			return 0, nil
 		}
 
-		r.State = done
+		r.State = initializingHeaders
 		r.RequestLine = *requestLine
 		return bytesReaden, nil
-	}
+	case initializingHeaders:
+		n, finished, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
 
-	if r.State == done {
+		if n == 0 {
+			return 0, nil
+		}
+
+		if finished {
+			r.State = done
+		}
+
+		return n, nil
+	case done:
 		return 0, fmt.Errorf("there's nothing to be readen from ")
+	default:
+		return 0, fmt.Errorf("unknown state")
 	}
-
-	return 0, fmt.Errorf("unknown state")
-
 }
