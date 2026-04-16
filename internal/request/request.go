@@ -3,7 +3,9 @@ package request
 import (
 	"fmt"
 	"io"
+	"log"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/siluk00/http_protocol/internal/headers"
@@ -13,6 +15,7 @@ type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
 	State       state
+	Body        []byte
 }
 
 type RequestLine struct {
@@ -26,6 +29,7 @@ type state int
 const (
 	initialized state = iota
 	initializingHeaders
+	parsingBody
 	done
 )
 
@@ -50,6 +54,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 		if err != nil {
 			if err == io.EOF {
+				if request.State == parsingBody {
+					return nil, fmt.Errorf("Body is shorter than content-length")
+				}
 				break
 			}
 			return nil, err
@@ -143,10 +150,34 @@ func (r *Request) parse(data []byte) (int, error) {
 		}
 
 		if finished {
-			r.State = done
+			r.State = parsingBody
 		}
 
 		return n, nil
+	case parsingBody:
+		if r.Headers.Get("Content-Length") == "" {
+			r.State = done
+			return 0, nil
+		}
+
+		r.Body = append(r.Body, data...)
+		log.Println(r.Headers.Get("Content-length"))
+		contentLength, err := strconv.Atoi(r.Headers.Get("Content-Length"))
+
+		if err != nil {
+			return 0, fmt.Errorf("Malformed Headers, Content-length should be a number")
+		}
+
+		if len(r.Body) > contentLength {
+			return 0, fmt.Errorf("Malformed Headers: Body length grater than content-length header")
+		}
+
+		if len(r.Body) == contentLength {
+			r.State = done
+			log.Printf("the entire length of data was consumed")
+		}
+
+		return len(data), nil
 	case done:
 		return 0, fmt.Errorf("there's nothing to be readen from ")
 	default:

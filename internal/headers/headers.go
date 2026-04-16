@@ -2,7 +2,6 @@ package headers
 
 import (
 	"fmt"
-	"log"
 	"strings"
 )
 
@@ -12,7 +11,7 @@ type Headers map[string]string
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 	dataStr := string(data)
-	log.Printf("%s\n", data)
+	//log.Printf("%s\n", data)
 	done = false
 
 	if strings.HasPrefix(dataStr, "\r\n") {
@@ -50,16 +49,20 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 0, false, fmt.Errorf("malformed headers: invalid key format")
 	}
 
-	fmt.Println(key)
-	fmt.Println(value)
+	//fmt.Println(key)
+	//fmt.Println(value)
 	if _, ok := h[key]; !ok {
 		h[key] = value
 	} else {
 		h[key] += ", " + value
 	}
-	fmt.Println(h[key])
+	//fmt.Println(h[key])
 
 	return len(dataStr) + 2, done, nil
+}
+
+func (h Headers) Get(key string) string {
+	return h[strings.ToLower(key)]
 }
 
 func containsUnallowedCharacters(s string) bool {
