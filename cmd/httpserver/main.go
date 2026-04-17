@@ -6,13 +6,16 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/siluk00/http_protocol/internal/request"
+	"github.com/siluk00/http_protocol/internal/response"
 	"github.com/siluk00/http_protocol/internal/server"
 )
 
 const port = 42069
 
 func main() {
-	server, err := server.Serve(port)
+
+	server, err := server.Serve(serverHandler, port)
 	if err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
@@ -23,4 +26,27 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 	log.Println("Server gracefully stopped")
+}
+
+func serverHandler(w *response.Writer, req *request.Request) {
+	if req.RequestLine.RequestTarget == "/yourproblem" {
+		responseBody := "<html><head><title>400 Bad Request</title></head><body><h1>Bad Request</h1><p>Your request honestly kinda sucked.</p></body></html>"
+		w.WriteStatusLine(400)
+		w.WriteHeaders(response.GetDefaultHeaders(len(responseBody), "text/html"))
+		w.WriteBody([]byte(responseBody))
+		return
+	}
+
+	if req.RequestLine.RequestTarget == "/myproblem" {
+		responseBody := "<html><head><title>500 Internal Server Error</title></head><body><h1>Internal Server Error</h1><p>Okay, you know what? This one is on me.</p></body></html>"
+		w.WriteStatusLine(500)
+		w.WriteHeaders(response.GetDefaultHeaders(len(responseBody), "text/html"))
+		w.WriteBody([]byte(responseBody))
+		return
+	}
+
+	responseBody := "<html><head><title>200 OK</title></head><body><h1>Success</h1><p>Your request was an absolute banger.</p></body></html>"
+	w.WriteStatusLine(200)
+	w.WriteHeaders(response.GetDefaultHeaders(len(responseBody), "text/html"))
+	w.WriteBody([]byte(responseBody))
 }

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/siluk00/http_protocol/internal/request"
 	"github.com/siluk00/http_protocol/internal/response"
 )
 
@@ -15,9 +16,10 @@ type Server struct {
 	listener net.Listener
 	isClosed atomic.Bool
 	wg       sync.WaitGroup
+	handler  Handler
 }
 
-func Serve(port int) (*Server, error) {
+func Serve(handler Handler, port int) (*Server, error) {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 
 	if err != nil {
@@ -27,6 +29,7 @@ func Serve(port int) (*Server, error) {
 	server := Server{
 		listener: listener,
 		errChan:  make(chan error, 100),
+		handler:  handler,
 	}
 
 	server.wg.Add(1)
@@ -73,8 +76,16 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
-	if err := response.WriteStatusLine(conn, 200); err != nil {
-		s.errChan <- fmt.Errorf("write error: %v", err)
+
+	writer := &response.Writer{
+		Writer: conn,
 	}
-	response.WriteHeaders(conn, response.GetDefaultHeaders(0))
+	req, err := request.RequestFromReader(conn)
+	if err != nil {
+		writer.WriteStatusLine(400)
+		writer.WriteHeaders(response.GetDefaultHeaders(0, "text/plain"))
+		return
+	}
+
+	s.handler(writer, req)
 }

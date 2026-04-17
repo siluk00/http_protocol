@@ -90,3 +90,7 @@ func allowed(r rune) bool {
 func NewHeaders() Headers {
 	return make(map[string]string)
 }
+
+func (h Headers) Override(key string, value string) {
+	h[key] = value
+}

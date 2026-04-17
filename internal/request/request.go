@@ -74,9 +74,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 				break
 			}
 
-			//newBuf := make([]byte, len(buf))
-			//copy(newBuf, buf[bytesReaden:])
-			//buf = newBuf
 			copy(buf, buf[bytesReaden:readenIndex])
 			readenIndex -= bytesReaden
 
