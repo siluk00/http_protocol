@@ -51,11 +51,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 	//fmt.Println(key)
 	//fmt.Println(value)
-	if _, ok := h[key]; !ok {
-		h[key] = value
-	} else {
-		h[key] += ", " + value
-	}
+	h.Set(key, value)
 	//fmt.Println(h[key])
 
 	return len(dataStr) + 2, done, nil
@@ -63,6 +59,14 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 func (h Headers) Get(key string) string {
 	return h[strings.ToLower(key)]
+}
+
+func (h Headers) Set(key string, value string) {
+	if _, ok := h[key]; !ok {
+		h[key] = value
+	} else {
+		h[key] += ", " + value
+	}
 }
 
 func containsUnallowedCharacters(s string) bool {

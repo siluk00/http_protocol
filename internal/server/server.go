@@ -6,6 +6,8 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/siluk00/http_protocol/internal/response"
 )
 
 type Server struct {
@@ -71,11 +73,8 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
-	if _, err := conn.Write([]byte("HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		//"Content-Length: 13\r\n\r\n" +
-		"Hello World!",
-	)); err != nil {
+	if err := response.WriteStatusLine(conn, 200); err != nil {
 		s.errChan <- fmt.Errorf("write error: %v", err)
 	}
+	response.WriteHeaders(conn, response.GetDefaultHeaders(0))
 }
