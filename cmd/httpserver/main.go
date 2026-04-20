@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/siluk00/http_protocol/internal/request"
@@ -29,6 +30,11 @@ func main() {
 }
 
 func serverHandler(w *response.Writer, req *request.Request) {
+	if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin") {
+		server.ProxyHandler(w, req)
+		return
+	}
+
 	if req.RequestLine.RequestTarget == "/yourproblem" {
 		responseBody := "<html><head><title>400 Bad Request</title></head><body><h1>Bad Request</h1><p>Your request honestly kinda sucked.</p></body></html>"
 		w.WriteStatusLine(400)
